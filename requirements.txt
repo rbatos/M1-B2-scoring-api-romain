@@ -1,0 +1,20 @@
+# M1-B2 — requirements
+# Python 3.11+
+
+# API
+fastapi==0.115.4
+uvicorn[standard]==0.32.0
+pydantic==2.10.0
+
+# Modèle ML (doit matcher la version M1-B1 pour reload joblib)
+scikit-learn==1.5.1
+pandas==2.2.2
+numpy==1.26.4
+joblib==1.4.2
+
+# Logging
+loguru==0.7.2
+
+# Tests
+pytest==8.3.3
+httpx==0.27.2          # nécessaire pour TestClient

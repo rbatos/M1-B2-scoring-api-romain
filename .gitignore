@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Modèles (à copier depuis M1-B1, pas à commiter ici)
+models/*.joblib
+models/*.json
+!models/.gitkeep
+
+# Logs
+logs/*.log
+logs/*.log.*
+logs/*.gz
+!logs/.gitkeep
+
+# Variables d'env
+.env
+.env.local
+
+# Docker
+# (.dockerignore est dans le repo, séparé)
