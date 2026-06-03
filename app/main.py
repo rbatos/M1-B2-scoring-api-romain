@@ -19,13 +19,7 @@ from app.schemas import HealthResponse, LoanApplication, Prediction
 
 from scripts.sanity_check import sanity_check
 
-from pydantic import BaseModel, Field
-
-from app.schemas import LoanApplication, Prediction, HealthResponse
-
 import uuid
-
-from fastapi.middleware.cors import CORSMiddleware
 
 # --- Loguru configuration ---------------------------------------------------
 
@@ -128,6 +122,7 @@ async def predict(application: LoanApplication, request: Request) -> Prediction:
       Erreurs : 422 input invalide, 500 erreur modèle, 503 modèle non chargé.
     """
     request_id = str(uuid.uuid4())
+    logger.info(f"request_id 1: {request_id}")
 
     # Validation de base : modèle chargé
     if not hasattr(app.state, "model") or app.state.model is None:
@@ -150,4 +145,9 @@ async def predict(application: LoanApplication, request: Request) -> Prediction:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Prediction failed: {exc}") from exc
     
     # 3. Retourner Prediction avec request_id
-    return Prediction(pred, round(proba, 4), model_version=app.state.metadata["model_version"], request_id=request.state.request_id)
+    return Prediction(
+        prediction=pred,
+        probability=round(proba, 4),
+        model_version=app.state.metadata["model_version"],
+        request_id=request_id,
+    )
