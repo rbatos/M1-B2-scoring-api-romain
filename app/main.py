@@ -19,7 +19,7 @@ from app.schemas import HealthResponse, LoanApplication, Prediction
 
 from scripts.sanity_check import sanity_check
 
-import uuid
+from fastapi.middleware.cors import CORSMiddleware
 
 # --- Loguru configuration ---------------------------------------------------
 
@@ -75,7 +75,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.add_middleware(LoggingMiddleware)
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8000"],   # liste explicite, jamais "*" en prod
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "Authorization"],   # liste explicite car allow_credentials=True (https://en.wikipedia.org/wiki/List_of_HTTP_header_fields) (Authorization pour HTTPBearer)
+)
 
 # --- Routes -----------------------------------------------------------------
 
@@ -121,16 +127,13 @@ async def predict(application: LoanApplication, request: Request) -> Prediction:
 
       Erreurs : 422 input invalide, 500 erreur modèle, 503 modèle non chargé.
     """
-    request_id = str(uuid.uuid4())
-    logger.info(f"request_id 1: {request_id}")
-
     # Validation de base : modèle chargé
     if not hasattr(app.state, "model") or app.state.model is None:
-        logger.error(f"Prediction request {request_id} failed: Model not loaded")
+        logger.error(f"Prediction request {request.state.request_id} failed: Model not loaded")
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Model not loaded")
     # Validation de base : application conforme au schéma LoanApplication (Input mal formé (champ manquant, type invalide, valeur hors bornes))
     if not isinstance(application, LoanApplication):
-        logger.error(f"Prediction request {request_id} failed: Input is not a LoanApplication")
+        logger.error(f"Prediction request {request.state.request_id} failed: Input is not a LoanApplication")
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Input must be a LoanApplication")
     
     try:
@@ -141,13 +144,13 @@ async def predict(application: LoanApplication, request: Request) -> Prediction:
         proba = float(app.state.model.predict_proba(X)[0, 1])
     except Exception as exc:
         # Log l'erreur et lever une HTTPException 500
-        logger.error(f"Prediction failed for request {request_id}: {exc}")
+        logger.error(f"Prediction failed for request {request.state.request_id}: {exc}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Prediction failed: {exc}") from exc
     
-    # 3. Retourner Prediction avec request_id
+    # 3. Retourner Prediction avec request_id (proba est arroundi à 4 décimales pour plus de lisibilité)
     return Prediction(
         prediction=pred,
         probability=round(proba, 4),
         model_version=app.state.metadata["model_version"],
-        request_id=request_id,
+        request_id=request.state.request_id,
     )
