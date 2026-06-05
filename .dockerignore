@@ -6,6 +6,7 @@ __pycache__/
 .pytest_cache/
 .ipynb_checkpoints/
 notebooks/
+# A décommenter pour le test : docker run --rm pyrenex-risk-api:v0.1.0-test
 tests/
 data/
 docs/

@@ -1,0 +1,5 @@
+# Dockerfile.test
+FROM pyrenex-risk-api:v0.1.0
+COPY tests/ /home/appuser/app/tests/
+RUN pip install --no-cache-dir pytest httpx
+CMD ["pytest", "-v"]
