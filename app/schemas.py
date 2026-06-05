@@ -1,6 +1,6 @@
 """Pydantic schemas for the Pyrenex Risk API.
 
-TODO — Align LoanApplication with the feature_columns from your
+Align LoanApplication with the feature_columns from your
 pyrenex_risk_v2.json metadata (M1-B1 output).
 """
 from __future__ import annotations
@@ -31,7 +31,7 @@ class LoanApplication(BaseModel):
     revol_util: float = Field(..., ge=0, le=200, description="Revolving line utilization rate (%)")
 
     model_config = {
-        "schema_extra": {
+        "json_schema_extra": {
             "example": {
                 "loan_amnt": 10000,
                 "term": "36 months",
