@@ -51,21 +51,45 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             else "ERROR"
         )
 
+        # Enrichir d'au moins un point au choix : clé endpoint normalisée, LOG_LEVEL par env var, compteur d'appels par endpoint, ou model_version dans la trace /predict.
+        model_version = request.app.state.metadata.get("model_version", "unknown")
+
         # Enregistre un log structuré avec le format choisi et les données
         # de la requête. Le binding request_id permet de l'inclure dans tous
         # les messages liés à cette requête.
         # Timestamp en ISO 8601 UTC
-        logger.bind(request_id=request_id).log(
-            log_level,
-            "{timestamp} - {request_id} | {level} | {method} {path} {status} {latency_ms}ms",
-            request_id=request_id,
-            level=log_level,
-            method=request.method,
-            path=request.url.path,
-            status=status_code,
-            latency_ms=latency_ms,
-            timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        )
+        timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+        log_data = {
+            "request_id": request_id,
+            "level": log_level,
+            "method": request.method,
+            "path": request.url.path,
+            "status": status_code,
+            "latency_ms": latency_ms,
+            "timestamp": timestamp,
+        }
+
+        message = "{timestamp} - {request_id} | {level} | {method} {path} {status} {latency_ms}ms"
+
+        if request.url.path.startswith("/predict"):
+            log_data["model_version"] = model_version
+            message += " | model_version={model_version}"
+
+        logger.bind(request_id=request_id).log(log_level, message, **log_data)
+        # logger.bind(request_id=request_id).log(
+        #     log_level,
+        #     "{timestamp} - {request_id} | {level} | {method} {path} {status} {latency_ms}ms",
+        #     request_id=request_id,
+        #     level=log_level,
+        #     method=request.method,
+        #     path=request.url.path,
+        #     status=status_code,
+        #     latency_ms=latency_ms,
+        #     timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        # )
+        # if request.url.path.startswith("/predict"):
+        #     logger.bind(request_id=request_id).info(f"Model version for /predict: {model_version}")
 
         # Ajoute l'en-tête X-Request-ID dans la réponse pour renvoyer l'ID
         # généré ou transmis au client.
