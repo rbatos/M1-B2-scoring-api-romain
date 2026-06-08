@@ -71,7 +71,7 @@ sanity_check()
 
 app = FastAPI(
     title="Pyrenex Risk API",
-    version="0.1.0",
+    version="0.1.0-api",
     description="API serving the Pyrenex Crédit credit-risk scoring model.",
     lifespan=lifespan,
 )
@@ -107,7 +107,7 @@ async def info() -> dict:
         metrics_holdout, feature_columns, sklearn_version, dataset_sha256
     """
     return {
-        "api_version": app.state.metadata["api_version"],            # "0.1.0"
+        "api_version": app.version,                                  # "0.1.0"
         "model_name": app.state.metadata["model_name"],              # "pyrenex_risk_v2"
         "model_version": app.state.metadata["model_version"],        # "v2.0.0"
         "model_created_at": app.state.metadata["created_at"],
