@@ -1,37 +1,126 @@
 # M1-B2 — Squelette repo (Pyrenex Crédit scoring API)
 
-> **Repo template GitHub.** Clique sur **« Use this template »** en haut à
-> droite de cette page → **Create a new repository** → nomme-le
-> `M1-B2-scoring-api-<prénom>` sur **ton** compte GitHub personnel.
-> C'est ce nouveau repo que tu cloneras pour travailler.
+> Ce repo contient une API FastAPI pour servir un modèle de scoring de crédit
+> issu de la phase M1-B1. Il expose l’état du service, les métadonnées du
+> modèle et une route de prédiction.
 
 ---
 
-## 🚀 Démarrage (4 commandes)
+## Architecture
 
-```bash
-# 0. Clone ton repo perso fraîchement créé
-git clone git@github.com:<ton-user>/M1-B2-scoring-api-<prenom>.git
-cd M1-B2-scoring-api-<prenom>
+```mermaid
+---
+config:
+  layout: dagre
+---
+flowchart TB
+ subgraph A["Client HTTP"]
+        A1["Interface web<br>ou service consommateur"]
+  end
+ subgraph B["API de Scoring (FastAPI)"]
+        B4["Loguru Middleware<br>(logging &amp; latence)"]
+        B1["Route /health"]
+        B2["Route /info<br>(modèle, version, métadonnées)"]
+        B3["Route /predict<br>(POST Pydantic)"]
+  end
+ subgraph C["Modèle ML - pyrenex_risk_v2.joblib"]
+        C1["Chargement depuis models/"]
+        C2["Scoring avec RandomForest<br>(probabilité de défaut)"]
+  end
+    A1 -- Requête HTTP (GET/POST) --> B4
+    B4 -- get /health --> B1
+    B4 -- get /info --> B2
+    B4 -- post /predict --> B3
+    B1 -- Réponse JSON (status) --> B4
+    B2 -- "Réponse JSON (modèle, version, feature_columns, metrics_holdout,...)" --> B4
+    B3 -- Validation Pydantic + transformation features --> C1
+    C1 -- Appel du modèle RandomForest --> C2
+    C2 -- Résultat du scoring (score_risque) --> B3
+    B3 -- Réponse JSON (prediction, probability, model_version, request_id) --> B4
+    B4 -- HTTP Response --> A1
 
-# 1. Environnement virtuel
-python -m venv .venv && source .venv/bin/activate     # Linux/macOS
-# .venv\Scripts\activate                              # Windows
-
-# 2. Dépendances
-pip install -r requirements.txt
-
-# 3. Vérification (avec ton modèle M1-B1 dans models/)
-uvicorn app.main:app --reload                          # → /health doit répondre 200
+     A1:::client
+     B4:::middleware
+     B1:::api
+     B2:::api
+     B3:::api
+     C1:::model
+     C2:::model
+    classDef client stroke:#38bdf8,fill:#f0f9ff
+    classDef api stroke:#818cf8,fill:#eef2ff
+    classDef model stroke:#4ade80,fill:#f0fdf4
+    classDef middleware stroke:#2dd4bf,fill:#f0fdfa
 ```
 
-Ensuite (autre terminal) :
+---
+
+## 🚀 Démarrage rapide
 
 ```bash
-curl http://localhost:8000/health
-curl http://localhost:8000/info
-pytest -v                                              # → 1 test exemple passe
+# 1. Clone le repo et positionne-toi dans le dossier du projet
+git clone git@github.com:rbatos/M1-B2-scoring-api-romain.git
+cd M1-B2-scoring-api-romain
+
+# 2. Crée l'environnement virtuel
+uv venv --python 3.11
+source .venv/bin/activate
+
+# 3. Installe les dépendances
+uv pip install -r requirements.txt
+
+# 4. Lance le service
+uvicorn app.main:app --reload
 ```
+
+Ensuite, vérifie :
+
+```bash
+curl --noproxy localhost http://localhost:8000/health
+curl --noproxy localhost http://localhost:8000/info
+```
+
+---
+
+## 🚀 Démarrage conteunérisé
+
+```bash
+# 1. Build
+docker build -t pyrenex-risk-api:v0.1.0 .
+
+# 2. Run
+docker run -d -p 8000:8000 --name pyrenex-api pyrenex-risk-api:v0.1.0
+
+# 3. Vérifications
+docker ps                                  # → STATUS doit contenir (healthy)
+curl --noproxy localhost http://localhost:8000/health    # → {"status": "ok"}
+curl --noproxy localhost http://localhost:8000/info      # → JSON métadonnées
+
+# 4. Stop
+docker stop pyrenex-api && docker rm pyrenex-api
+```
+
+---
+
+## 🔑 ### **Versionning**
+
+La version du modèle de scoring est traçable via deux sources complémentaires :
+
+- **Endpoint `/info`** : L’API expose un endpoint REST (`GET /info`) qui retourne les métadonnées du modèle, incluant sa version (`"model_version":"v2.0.0"`), son nom (`"model_name":"pyrenex_risk_v2"`), la date de déploiement (`"model_created_at":"2026-06-02T14:24:03.520359+00:00"`)....
+- **Tag Git** : Le dépôt Git du projet utilise des tags sémantiques (ex: `v2.0.1`) pour marquer les versions stables du modèle et du code. Ces tags sont alignés avec les versions déployées en production pour garantir la reproductibilité.
+
+Pour vérifier la version en cours, exécutez :
+
+```bash
+curl --noproxy localhost http://localhost:8000/info
+```
+
+ou consultez les tags via :
+
+```bash
+git tag -l
+```
+
+Directement dans le fichier `models/pyrenex_risk_v2.json` (`"model_version": "v2.0.0"`)
 
 ---
 
@@ -44,28 +133,24 @@ M1-B2-scoring-api-<prenom>/
 │   ├── main.py                  # FastAPI app + lifespan + routes
 │   ├── schemas.py               # Pydantic schemas (LoanApplication, Prediction)
 │   └── middleware.py            # LoggingMiddleware Loguru
+├── scripts/
+│   └── sanity_check.py          # sanity check modèle + métadonnées avant lancement
 ├── tests/
 │   ├── __init__.py
 │   ├── conftest.py              # fixtures pytest (client + valid_payload)
-│   ├── test_model_contract.py   # test 0 — valide le .joblib avant l'API
+│   ├── test_model_contract.py   # test modèle avant l'API
 │   └── test_api.py              # tests routes /health, /info, /predict
 ├── models/                      # ton .joblib + .json depuis M1-B1
 │   └── .gitkeep
 ├── logs/                        # logs rotatifs (gitignored)
 │   └── .gitkeep
-├── ressources/                  # 📚 mini-cours d'appui (lecture juste-à-temps)
-│   ├── 01_FastAPI_Pydantic_ml_essentiel.md
-│   ├── 02_Dockerfile_Python_essentiel.md
-│   ├── 03_Pytest_TestClient_essentiel.md
-│   ├── 04_Loguru_middleware_essentiel.md
-│   ├── 05_Versionning_modele_essentiel.md
-│   ├── liens_officiels.md
-│   └── README.md                # ordre de mobilisation + objectifs
-├── Dockerfile                   # à compléter (cf. ressources/02)
+├── ressources/                  # mini-cours d'appui
+├── Dockerfile
+├── Dockerfile.test
 ├── .dockerignore
 ├── .gitignore
 ├── requirements.txt
-└── README.md (ce fichier — à compléter avec schéma Mermaid + démarrage)
+└── README.md
 ```
 
 ---
@@ -133,61 +218,156 @@ Cf. [`./ressources/README.md`](./ressources/README.md) pour l'ordre de mobilisat
 
 ---
 
-## 📥 Modèle (depuis M1-B1)
+## 📌 Modèle (depuis M1-B1)
 
-**Avant tout**, copie ton modèle M1-B1 :
+**Avant de démarrer l'API**, copie ton modèle M1-B1 dans `models/` :
 
 ```bash
 cp ../M1-B1-scoring-<prenom>/models/pyrenex_risk_v2.joblib ./models/
 cp ../M1-B1-scoring-<prenom>/models/pyrenex_risk_v2.json   ./models/
 ```
 
-Le service ne démarre pas sans ces 2 fichiers.
+⚠️ Le service ne démarre pas sans ces deux fichiers.
 
 ---
 
-## 🧭 Démarche attendue
+## 🛠️ Endpoints disponibles
 
-### Mercredi sync (2 h 15)
+### `GET /health`
 
-1. **Sanity check** : recharger le `.joblib` dans un script séparé (5 min)
-2. **Squelette FastAPI** : `/health`, `/info`, `/predict` (1 h 15)
-3. **Dockerfile minimal** : build + run + curl OK (30 min)
-4. **Tour de table** Discord 11h30 : démo curl + discussion versionning (30 min)
+- Réponse 200 si le modèle est chargé.
+- Réponse 503 si le modèle n'est pas chargé.
 
-### Async jeudi/vendredi matin (6 h)
+### `GET /info`
 
-5. **Contract test** d'abord (`test_model_contract.py`) puis **tests d'API**
-   (≥ 3) en local **et** dans le container — **volume monté** en priorité
-   (voie rapide), `Dockerfile.test` en option CI/CD (cf. mini-cours 03)
-   (1 h 30)
-6. **Loguru middleware** avec `request_id` + format JSON + rotation logs.
-   ⚠️ **Aucune PII** dans les logs (cf. mini-cours 04) (45 min)
-7. **README complet** + schéma Mermaid + tag `v0.1.0-api` (2 h)
-8. **Finition** + préparation RDV vendredi (1 h 45)
+Retourne les métadonnées du modèle chargé :
 
-Mini-cours d'appui : voir [`./ressources/`](./ressources/).
+- `api_version`
+- `model_name`
+- `model_version`
+- `model_created_at`
+- `metrics_holdout`
+- `sklearn_version`
+- `dataset_sha256`
+- `feature_columns`
+
+### `POST /predict`
+
+- Reçoit un objet JSON unique correspondant au schéma `LoanApplication`.
+- Valide le payload via Pydantic.
+- Convertit l'objet en DataFrame une ligne puis appelle le modèle.
+- Retourne un objet `Prediction`.
+
+#### Exemple de requête valide
+
+```bash
+curl --noproxy localhost \
+  -H "Content-Type: application/json" \
+  -H "X-Request-ID: de25d100-192f-4bce-ac34-efb318041234" \
+  -X POST http://localhost:8000/predict \
+  -d '{
+    "loan_amnt": 7600,
+    "term": "36 months",
+    "int_rate": 11.39,
+    "annual_inc": 72500,
+    "purpose": "debt_consolidation",
+    "installment": 250.22,
+    "grade": "B",
+    "emp_length": "3 years",
+    "home_ownership": "MORTGAGE",
+    "verification_status": "Verified",
+    "dti": 13.12,
+    "delinq_2yrs": 1,
+    "fico_range_low": 725,
+    "revol_util": 48.0
+  }'
+```
+
+> Important : `/predict` attend un objet JSON, pas un tableau. Une requête
+> `[{ ... }]` provoque une erreur `422`.
+
+#### Exemple de réponse
+
+```json
+{
+  "prediction": 0,
+  "probability": 0.1234,
+  "model_version": "v2.0.0",
+  "request_id": "de25d100-192f-4bce-ac34-efb318041234"
+}
+```
+
+---
+
+## 📘 Schéma client → API → modèle
+
+```mermaid
+flowchart LR
+  Client[Client HTTP] -->|POST /predict| API[FastAPI API]
+  API -->|Validation Pydantic| Schema[LoanApplication schema]
+  API -->|Chargement du modèle| Model[Modèle ML joblib]
+  Model -->|predict + predict_proba| API
+  API -->|JSON réponse| Client
+```
+
+---
+
+## 🧪 Vérification et tests
+
+- Vérifie d'abord que `pytest -v` passe en local.
+- Les tests doivent couvrir :
+  - la charge du modèle et des métadonnées,
+  - le endpoint `/health`,
+  - le endpoint `/info`,
+  - le contract `/predict`.
+- `Dockerfile.test` peut être utilisé pour tester l'image en CI.
+
+---
+
+## ✅ Tâches et modifications appliquées
+
+1. `scripts/sanity_check.py` est exécuté au démarrage pour valider :
+   - la présence du `.joblib`,
+   - la présence du `.json`,
+   - la capacité à faire une prédiction sur une ligne de holdout.
+2. `app/main.py` expose les routes `/health`, `/info`, `/predict`.
+3. `app/schemas.py` définit les schémas d'entrée et de sortie `LoanApplication`
+   et `Prediction`.
+4. `app/middleware.py` trace chaque requêtes, ajoute `X-Request-ID` et enregistre
+   les logs dans `logs/api.log`.
+5. Le README est mis à jour pour refléter le comportement actuel de l'API,
+   l'usage de `/predict` et les exemples concrets.
 
 ---
 
 ## ✅ Conventions de code
 
 - Python 3.11+
-- Type hints sur toutes les signatures publiques
-- Pas de `print` — utiliser Loguru
-- `pathlib.Path` pour les chemins (pas de `os.path`)
-- Tests pytest **avec fixtures** (pas de boilerplate dupliqué)
-- Loguru en **JSON** (`serialize=True`) sur fichier, coloré en console
+- Type hints sur les signatures publiques
+- Pas de `print` — utilisation de Loguru
+- `pathlib.Path` pour les chemins
+- Tests pytest avec fixtures
+- Logs structurés en JSON dans `logs/api.log`
 
 ---
 
-## 🆘 Bloqué·e ?
+## 🆘 En cas de blocage
 
-1. **Swagger** : ouvre `http://localhost:8000/docs` — souvent le plus
-   rapide pour débugger.
-2. **Logs** : lis `logs/api.log` pour repérer les exceptions.
-3. **Tests local d'abord, Docker ensuite** : si `pytest` est rouge en
-   local, inutile de tester Docker — fix le code d'abord.
-4. **`docker logs <container>`** : voir ce que le container raconte au
-   démarrage.
-5. Mini-cours dédiés dans [`./ressources/`](./ressources/).
+- Ouvre `http://localhost:8000/docs` pour tester l'API.
+- Vérifie `logs/api.log` pour les erreurs.
+- Assure-toi que `models/pyrenex_risk_v2.joblib` et
+  `models/pyrenex_risk_v2.json` sont bien présents.
+- Si `pytest` échoue en local, corrige avant de dockeriser.
+- `docker logs <container>` montre les erreurs de container.
+
+---
+
+## ⭐ Préparation M5
+
+Pour le module **M5**, préparez l’infrastructure de stockage et de versionnage du modèle :
+
+1. Déplacez le modèle (`pyrenex_risk_v2.joblib`) dans **Git LFS** ou un **Object Storage** (S3/MinIO) pour éviter de surcharger le dépôt Git.
+2. Associez le **tag Git** (ex: `v0.1.0`) à une **image Docker** (`pyrenex-risk-api:v0.1.0`) et poussez-la vers un **registry** (Docker Hub, GitHub CR, ECR) pour conserver l’historique des versions.
+3. Modifiez l’API pour charger le **méta-fichier** (`pyrenex_risk_v2.json`) au démarrage du container et exposez ses métadonnées via `/info`.
+4. Documentez dans `docs/deployment.md` les étapes de build, tagging et push de l’image Docker.
+5. Validez via une PR et automatisez le déploiement en staging avec un workflow GitHub Actions lié au registry.
