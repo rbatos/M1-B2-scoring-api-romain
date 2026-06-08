@@ -70,6 +70,52 @@ M1-B2-scoring-api-<prenom>/
 
 ---
 
+## Flux détaillé pas à pas d'une requête GET /health
+
+```mermaid
+---
+config:
+  layout: elk
+---
+flowchart TD
+    A[Client envoie GET /health] -->|HTTP Request| B[LoggingMiddleware.dispatch]
+    B --> C{En-tête X-Request-ID<br/>présent?}
+    C -->|Oui| D[Récupérer request_id<br/>de l'en-tête]
+    C -->|Non| E[Générer UUID<br/>pour request_id]
+    D --> F[Sauvegarder request_id<br/>dans request.state]
+    E --> F
+    F --> G[Démarrer chronomètre<br/>de latence]
+    G --> H[Appeler la route /health<br/>await call_next]
+    H --> I{app.state.model<br/>est chargé?}
+    I -->|Oui| J[Retourner 200<br/>JSON: status ok]
+    I -->|Non| K[Retourner 503<br/>Service Unavailable]
+    J --> L[Calculer la latence<br/>en millisecondes]
+    K --> L
+    L --> M[Écrire log structuré<br/>avec request_id, méthode,<br/>chemin, status, latence]
+    M --> N[Ajouter header<br/>X-Request-ID à la réponse]
+    N --> O[Retourner response]
+    O -->|HTTP Response| P[Client reçoit la réponse]
+    
+    style A fill:#f0f9ff,stroke:#38bdf8
+    style B fill:#eef2ff,stroke:#818cf8
+    style C fill:#fef2f2,stroke:#f87171
+    style D fill:#f0fdf4,stroke:#4ade80
+    style E fill:#f0fdf4,stroke:#4ade80
+    style F fill:#f5f3ff,stroke:#a78bfa
+    style G fill:#f5f3ff,stroke:#a78bfa
+    style H fill:#eef2ff,stroke:#818cf8
+    style I fill:#fef2f2,stroke:#f87171
+    style J fill:#f0fdf4,stroke:#4ade80
+    style K fill:#fef2f2,stroke:#f87171
+    style L fill:#fefce8,stroke:#facc15
+    style M fill:#f0fdfa,stroke:#2dd4bf
+    style N fill:#f0fdfa,stroke:#2dd4bf
+    style O fill:#eef2ff,stroke:#818cf8
+    style P fill:#f0f9ff,stroke:#38bdf8
+```
+
+---
+
 ## 📚 Mini-cours d'appui
 
 Les **5 mini-cours pédagogiques** du brief sont fournis dans
