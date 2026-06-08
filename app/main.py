@@ -22,12 +22,13 @@ from scripts.sanity_check import sanity_check
 from fastapi.middleware.cors import CORSMiddleware
 
 # --- Loguru configuration ---------------------------------------------------
-
+# Configuration Loguru (au démarrage du module)
 LOGS_DIR = Path(__file__).parent.parent / "logs"
 LOGS_DIR.mkdir(exist_ok=True)
 
-logger.remove()
+logger.remove()  # vire le handler par défaut
 logger.add(sys.stderr, level="INFO", colorize=True)
+# Configuration du log rotate
 logger.add(
     LOGS_DIR / "api.log",
     rotation="10 MB",       # nouveau fichier à 10 Mo
@@ -129,11 +130,11 @@ async def predict(application: LoanApplication, request: Request) -> Prediction:
     """
     # Validation de base : modèle chargé
     if not hasattr(app.state, "model") or app.state.model is None:
-        logger.error(f"Prediction request {request.state.request_id} failed: Model not loaded")
+        #logger.error(f"Prediction request {request.state.request_id} failed: Model not loaded")
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Model not loaded")
     # Validation de base : application conforme au schéma LoanApplication (Input mal formé (champ manquant, type invalide, valeur hors bornes))
     if not isinstance(application, LoanApplication):
-        logger.error(f"Prediction request {request.state.request_id} failed: Input is not a LoanApplication")
+        #logger.error(f"Prediction request {request.state.request_id} failed: Input is not a LoanApplication")
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Input must be a LoanApplication")
     
     try:
@@ -144,7 +145,7 @@ async def predict(application: LoanApplication, request: Request) -> Prediction:
         proba = float(app.state.model.predict_proba(X)[0, 1])
     except Exception as exc:
         # Log l'erreur et lever une HTTPException 500
-        logger.error(f"Prediction failed for request {request.state.request_id}: {exc}")
+        #logger.error(f"Prediction failed for request {request.state.request_id}: {exc}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Prediction failed: {exc}") from exc
     
     # 3. Retourner Prediction avec request_id (proba est arroundi à 4 décimales pour plus de lisibilité)
