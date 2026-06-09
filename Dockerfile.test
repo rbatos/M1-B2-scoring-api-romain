@@ -1,5 +1,12 @@
 # Dockerfile.test
+# Image de base: on repart de l'image de l'API déjà construite
 FROM pyrenex-risk-api:v0.1.0
+
+# Copie les tests dans le conteneur pour pouvoir les exécuter
 COPY tests/ /home/appuser/app/tests/
+
+# Installe les dépendances nécessaires à l'exécution des tests
 RUN pip install --no-cache-dir pytest httpx
+
+# Commande par défaut: lance la suite de tests en mode verbeux
 CMD ["pytest", "-v"]
