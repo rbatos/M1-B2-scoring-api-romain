@@ -103,15 +103,17 @@ docker stop pyrenex-api && docker rm pyrenex-api
 
 ## 🔑 ### **Versionning**
 
-La version du modèle de scoring est traçable via deux sources complémentaires :
+La version du modèle de scoring est traçable via 3 sources complémentaires :
 
-- **Endpoint `/info`** : L’API expose un endpoint REST (`GET /info`) qui retourne les métadonnées du modèle, incluant sa version (`"model_version":"v2.0.0"`), son nom (`"model_name":"pyrenex_risk_v2"`), la date de déploiement (`"model_created_at":"2026-06-02T14:24:03.520359+00:00"`)....
+- **Endpoint `/info`** : L’API expose un endpoint REST (`GET /info`) qui 3urne les métadonnées du modèle, incluant sa version (`"model_version":"v2.0.0"`), son nom (`"model_name":"pyrenex_risk_v2"`), la date de déploiement (`"model_created_at":"2026-06-02T14:24:03.520359+00:00"`)....
 - **Tag Git** : Le dépôt Git du projet utilise des tags sémantiques (ex: `v2.0.1`) pour marquer les versions stables du modèle et du code. Ces tags sont alignés avec les versions déployées en production pour garantir la reproductibilité.
+- Vérifier la version dans `models/pyrenex_risk_v2.json`.
 
 Pour vérifier la version en cours, exécutez :
 
 ```bash
-curl --noproxy localhost http://localhost:8000/info
+curl --noproxy localhost http://localhost:8000/info-
+
 ```
 
 ou consultez les tags via :
