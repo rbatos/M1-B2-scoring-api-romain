@@ -17,4 +17,5 @@ loguru==0.7.2
 
 # Tests
 pytest==8.3.3
+pytest-order
 httpx==0.27.2          # nécessaire pour TestClient

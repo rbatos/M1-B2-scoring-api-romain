@@ -28,6 +28,7 @@ def loaded_model():
     return joblib.load(MODEL_PATH)
 
 
+@pytest.mark.order(1)
 def test_model_contract(loaded_model, valid_payload: dict) -> None:
     """Le modèle persisté respecte le schéma attendu par l'API.
 
